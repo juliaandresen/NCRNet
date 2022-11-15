@@ -1,10 +1,12 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import warnings
 
-from scipy.ndimage import morphology
+
+# Contact for NCR-Net:
+# Julia Andresen
+# j.andresen@uni-luebeck.de
+# Institute for Medical Informatics, University of Luebeck
 
 
 class WeightedDiceLoss(nn.Module):

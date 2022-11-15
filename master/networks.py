@@ -1,7 +1,16 @@
-import random
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+
+# Contact for NCR-Net:
+# Julia Andresen
+# j.andresen@uni-luebeck.de
+# Institute for Medical Informatics, University of Luebeck
+
+
+def worker_init_fn(worker_id):
+    np.random.seed(np.random.get_state()[1][0] + worker_id)
 
 
 # Diffeomorphic registration and segmentation of non-corresponding regions network (NCR-Net 2D)
@@ -181,20 +190,6 @@ class NoCoRegNet(nn.Module):
 
         return transformed_baseline, grid
 
-
-    @staticmethod
-    def _compute_scaling_value(displacement):
-
-        with torch.no_grad():
-            scaling = 8
-            norm = torch.norm(displacement / (2 ** scaling))
-
-            while norm > 0.5:
-                scaling += 1
-                norm = torch.norm(displacement / (2 ** scaling))
-
-        return scaling
-
     @staticmethod
     def diffeomorphic_2D(displacement, grid, scaling=-1):
 
@@ -204,7 +199,7 @@ class NoCoRegNet(nn.Module):
             d = displacement[n, ...].transpose(0, 1).transpose(1, 2)
 
             if scaling < 0:
-                scaling = self._compute_scaling_value(d)
+                scaling = compute_scaling_value(d)
 
             d = d / (2 ** scaling)
 
@@ -255,6 +250,7 @@ class NoCoRegNet(nn.Module):
         v3 = F.interpolate(output5_2, scale_factor=2, mode='bilinear')
 
         deformed1, phi1 = self.localSampler(inputs, v1)
+        # In later work I updated this part to perform a "nicer" down-sampling (interpolation instead of slicing)
         deformed2, phi2 = self.localSampler(inputs[:, :, ::2, ::2], v2)
         deformed3, phi3 = self.localSampler(inputs[:, :, ::4, ::4], v3)
 
@@ -274,6 +270,18 @@ class NoCoRegNet(nn.Module):
 
         return v1, phi1, deformed1, v2, phi2, deformed2, v3, phi3, deformed3, segmentation, segmentation2, segmentation3
 
+
+def compute_scaling_value(displacement):
+
+    with torch.no_grad():
+        scaling = 8
+        norm = torch.norm(displacement / (2 ** scaling))
+
+        while norm > 0.5:
+            scaling += 1
+            norm = torch.norm(displacement / (2 ** scaling))
+
+    return scaling
 
 # Diffeomorphic registration network
 class RegNet(nn.Module):
@@ -398,20 +406,6 @@ class RegNet(nn.Module):
 
         return transformed_baseline, grid
 
-
-    @staticmethod
-    def _compute_scaling_value(displacement):
-
-        with torch.no_grad():
-            scaling = 8
-            norm = torch.norm(displacement / (2 ** scaling))
-
-            while norm > 0.5:
-                scaling += 1
-                norm = torch.norm(displacement / (2 ** scaling))
-
-        return scaling
-
     @staticmethod
     def diffeomorphic_2D(displacement, grid, scaling=-1):
 
@@ -421,7 +415,7 @@ class RegNet(nn.Module):
             d = displacement[n, ...].transpose(0, 1).transpose(1, 2)
 
             if scaling < 0:
-                scaling = mumfordShahVelocity._compute_scaling_value(d)
+                scaling = compute_scaling_value(d)
 
             d = d / (2 ** scaling)
 
@@ -503,7 +497,7 @@ class SpatialTransformer(nn.Module):
 
         # registering the grid as a buffer cleanly moves it to the GPU, but it also
         # adds it to the state dict. this is annoying since everything in the state dict
-        # is included when saving weights to disk, so the model files are way bigger
+        # is included when saving weights to disk, so the model data are way bigger
         # than they need to be. so far, there does not appear to be an elegant solution.
         # see: https://discuss.pytorch.org/t/how-to-register-buffer-without-polluting-state-dict
         # self.register_buffer('grid', grid)

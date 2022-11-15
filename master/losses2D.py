@@ -1,10 +1,12 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import warnings
 
-from scipy.ndimage import morphology
+# Contact for NCR-Net:
+# Julia Andresen
+# j.andresen@uni-luebeck.de
+# Institute for Medical Informatics, University of Luebeck
 
 
 class WeightedDiceLoss(nn.Module):
@@ -21,6 +23,21 @@ class WeightedDiceLoss(nn.Module):
         cardinalities = (inputs + targets).sum(dim=[2, 3])
 
         dice = ((2 * (w * intersections).sum(dim=1) + smooth) / ((w * cardinalities).sum(dim=1) + smooth)).mean()
+
+        return 1 - dice
+
+
+class DiceLoss(nn.Module):
+    def __init__(self):
+        super(DiceLoss, self).__init__()
+
+    def forward(self, inputs, targets, smooth=1e-5):
+
+        intersections = (inputs * targets).sum(dim=[2, 3])
+
+        cardinalities = (inputs + targets).sum(dim=[2, 3])
+
+        dice = ((2 * intersections.sum(dim=1) + smooth) / (cardinalities.sum(dim=1) + smooth)).mean()
 
         return 1 - dice
 
@@ -126,3 +143,13 @@ def normalize(image, path=None):
                 print("Error...", e)
     return image
 
+
+class MaskedMSE(nn.Module):
+    def __init__(self):
+        super(MaskedMSE, self).__init__()
+
+    def forward(self, moving, fixed, segm):
+        image_dist = ((moving - fixed) ** 2)
+        masked = (1 - segm) * image_dist
+        means = masked.mean(dim=[1, 2, 3])
+        return means.mean()
